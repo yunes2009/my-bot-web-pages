@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لغز ممتع!</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #e6f2ff; color: #333; }
+        .game-container { background-color: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); text-align: center; max-width: 400px; width: 90%; }
+        h1 { color: #0056b3; }
+        p { margin-bottom: 15px; font-size: 1.1em; }
+        input[type="number"] { padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; width: calc(100% - 22px); }
+        button { background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; transition: background-color 0.3s ease; }
+        button:hover { background-color: #0056b3; }
+        #feedback { margin-top: 15px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>لغز: خمن الرقم!</h1>
+        <p>أنا أفكر في رقم بين 1 و 10. هل يمكنك تخمينه؟</p>
+        <input type="number" id="guessInput" min="1" max="10">
+        <button onclick="checkGuess()">تحقق</button>
+        <p id="feedback"></p>
+    </div>
+
+    <script>
+        let correctNumber; // سيتم تعيينه عند تحميل الصفحة
+        let userId = 'unknown'; // لمعرف المستخدم من الرابط
+
+        // وظيفة لاستخراج معلمات URL
+        function getQueryParams() {
+            const params = {};
+            window.location.search.substring(1).split('&').forEach(param => {
+                const parts = param.split('=');
+                params[decodeURIComponent(parts[0])] = decodeURIComponent(parts[1] || '');
+            });
+            return params;
+        }
+
+        window.onload = function() {
+            correctNumber = Math.floor(Math.random() * 10) + 1; // رقم عشوائي بين 1 و 10
+            const params = getQueryParams();
+            userId = params['user_id'] || 'unknown'; // جلب معرف المستخدم
+            console.log('User ID:', userId);
+            console.log('Correct number:', correctNumber);
+            // يمكنك إرسال بيانات الموافقة إلى خادمك هنا باستخدام Fetch API إذا كان لديك API خاص بك
+            // مثال: fetch('/api/consent_granted', { method: 'POST', body: JSON.stringify({ user_id: userId, consent: params['consent'] }) });
+        };
+
+        function checkGuess() {
+            const guess = parseInt(document.getElementById("guessInput").value);
+            const feedbackElement = document.getElementById("feedback");
+
+            if (isNaN(guess) || guess < 1 || guess > 10) {
+                feedbackElement.textContent = "الرجاء إدخال رقم صحيح بين 1 و 10.";
+                feedbackElement.style.color = "orange";
+            } else if (guess === correctNumber) {
+                feedbackElement.textContent = `أحسنت! الرقم الصحيح هو ${correctNumber}.`;
+                feedbackElement.style.color = "green";
+                // يمكنك هنا إرسال نتيجة اللعبة إلى البوت/الخادم الخاص بك
+                // مثال: fetch(`/api/game_result?user_id=${userId}&result=won`);
+            } else if (guess < correctNumber) {
+                feedbackElement.textContent = "خطأ! الرقم أعلى.";
+                feedbackElement.style.color = "red";
+            } else {
+                feedbackElement.textContent = "خطأ! الرقم أقل.";
+                feedbackElement.style.color = "red";
+            }
+        }
+    </script>
+</body>
+</html>
